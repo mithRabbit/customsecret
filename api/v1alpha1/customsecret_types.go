@@ -51,6 +51,9 @@ type CustomSecretSpec struct {
 type CustomSecretStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// LastRotationTime is the time when the secret was last rotated
+	LastRotationTime metav1.Time `json:"lastRotationTime,omitempty"`
 }
 
 // +kubebuilder:object:root=true
