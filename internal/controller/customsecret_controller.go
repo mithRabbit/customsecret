@@ -61,81 +61,87 @@ func (r *CustomSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if custom.Spec.Type == "basic-auth" && custom.Spec.Username == "admin" && custom.Spec.PasswordLen == 40 && custom.Spec.RotationPeriod > 0 {
-		l.Info("reconciling CustomSecret: CustomSecret", "name", custom.Name, "type", custom.Spec.Type, "username", custom.Spec.Username, "passwordLen", custom.Spec.PasswordLen, "rotationPeriod", custom.Spec.RotationPeriod)
+		l.Info("reconciling CustomSecret", "name", custom.Name, "type", custom.Spec.Type, "username", custom.Spec.Username, "passwordLen", custom.Spec.PasswordLen, "rotationPeriod", custom.Spec.RotationPeriod)
 
-		// Generate a random password
 		password, err := generateRandomPassword(custom.Spec.PasswordLen)
 		if err != nil {
 			l.Error(err, "unable to generate random password")
 			return ctrl.Result{}, err
 		}
 
-		exisitngSecret := &corev1.Secret{}
-		if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: custom.Name}, exisitngSecret); err != nil {
-			if err != nil && client.IgnoreNotFound(err) != nil {
-				l.Error(err, "unable to fetch Secret")
-				return ctrl.Result{}, err
-			}
+		existingSecret := &corev1.Secret{}
+		err = r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: custom.Name}, existingSecret)
+		if client.IgnoreNotFound(err) != nil {
+			l.Error(err, "unable to fetch Secret")
+			return ctrl.Result{}, err
+		}
 
-			// Create or update the secret
-			if err == nil {
-				// Secret exists, check rotation period
-				lastRotationTime := custom.Status.LastRotationTime.Time
-				if time.Since(lastRotationTime) > time.Duration(custom.Spec.RotationPeriod)*time.Second {
-					exisitngSecret.StringData["password"] = password
-					if err := r.Update(ctx, exisitngSecret); err != nil {
-						l.Error(err, "unable to update exisitngSecret")
-						return ctrl.Result{}, err
-					}
-					l.Info("Secret updated", "name", custom.Name)
-
-					custom.Status.LastRotationTime = metav1.Now()
-					if err := r.Status().Update(ctx, custom); err != nil {
-						l.Error(err, "unable to update CustomSecret status")
-						return ctrl.Result{}, err
-					}
-					l.Info("CustomSecret status updated", "name", custom.Name)
-				} else {
-					l.Info("Secret not rotated: rotation period not over", "name", custom.Name)
-				}
-			} else { // secret does not exist
-				secret := &corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      custom.Name,
-						Namespace: custom.Namespace,
-					},
-					Type: corev1.SecretTypeBasicAuth,
-					StringData: map[string]string{
-						"username": custom.Spec.Username,
-						"password": password,
-					},
-				}
-
-				if err := r.Create(ctx, secret); err != nil {
-					l.Error(err, "unable to create Secret")
+		if err == nil {
+			if shouldRotateSecret(custom) {
+				if err := r.updateSecret(ctx, existingSecret, password); err != nil {
+					l.Error(err, "unable to update existing Secret")
 					return ctrl.Result{}, err
 				}
-				l.Info("Secret created", "name", custom.Name)
+				l.Info("Secret updated", "name", custom.Name)
 
-				custom.Status.LastRotationTime = metav1.Now()
-				if err := r.Status().Update(ctx, custom); err != nil {
+				if err := r.updateCustomSecretStatus(ctx, custom); err != nil {
 					l.Error(err, "unable to update CustomSecret status")
 					return ctrl.Result{}, err
 				}
 				l.Info("CustomSecret status updated", "name", custom.Name)
+			} else {
+				secondsLeft := time.Duration(custom.Spec.RotationPeriod)*time.Second - time.Since(custom.Status.LastRotationTime.Time)
+				l.Info("Secret not rotated: rotation period not over", "name", custom.Name, "secondsLeft", secondsLeft.Seconds())
+				return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 			}
+		} else {
+			if err := r.createSecret(ctx, custom, password); err != nil {
+				l.Error(err, "unable to create Secret")
+				return ctrl.Result{}, err
+			}
+			l.Info("Secret created", "name", custom.Name)
+
+			if err := r.updateCustomSecretStatus(ctx, custom); err != nil {
+				l.Error(err, "unable to update CustomSecret status")
+				return ctrl.Result{}, err
+			}
+			l.Info("CustomSecret status updated", "name", custom.Name)
 		}
 	}
 
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *CustomSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&apiv1alpha1.CustomSecret{}).
-		Named("customsecret").
-		Complete(r)
+func shouldRotateSecret(custom *apiv1alpha1.CustomSecret) bool {
+	return time.Since(custom.Status.LastRotationTime.Time) > time.Duration(custom.Spec.RotationPeriod)*time.Second
+}
+
+func (r *CustomSecretReconciler) updateSecret(ctx context.Context, secret *corev1.Secret, password string) error {
+	if secret.StringData == nil {
+		secret.StringData = make(map[string]string)
+	}
+	secret.StringData["password"] = password
+	return r.Update(ctx, secret)
+}
+
+func (r *CustomSecretReconciler) createSecret(ctx context.Context, custom *apiv1alpha1.CustomSecret, password string) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      custom.Name,
+			Namespace: custom.Namespace,
+		},
+		Type: corev1.SecretTypeBasicAuth,
+		StringData: map[string]string{
+			"username": custom.Spec.Username,
+			"password": password,
+		},
+	}
+	return r.Create(ctx, secret)
+}
+
+func (r *CustomSecretReconciler) updateCustomSecretStatus(ctx context.Context, custom *apiv1alpha1.CustomSecret) error {
+	custom.Status.LastRotationTime = metav1.Now()
+	return r.Status().Update(ctx, custom)
 }
 
 func generateRandomPassword(n int) (string, error) {
@@ -145,4 +151,12 @@ func generateRandomPassword(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *CustomSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&apiv1alpha1.CustomSecret{}).
+		Named("customsecret").
+		Complete(r)
 }
