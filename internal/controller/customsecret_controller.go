@@ -91,8 +91,8 @@ func (r *CustomSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				l.Info("CustomSecret status updated", "name", custom.Name)
 			} else {
 				secondsLeft := time.Duration(custom.Spec.RotationPeriod)*time.Second - time.Since(custom.Status.LastRotationTime.Time)
-				l.Info("Secret not rotated: rotation period not over", "name", custom.Name, "secondsLeft", secondsLeft.Seconds())
-				return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+				l.Info("Secret will be rotated after", "name", custom.Name, "secondsLeft", secondsLeft.Seconds())
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			}
 		} else {
 			if err := r.createSecret(ctx, custom, password); err != nil {
