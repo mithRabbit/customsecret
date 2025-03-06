@@ -6,6 +6,16 @@ A Kubernetes controller for managing CustomSecret resources, which automatically
 
 The CustomSecret controller allows you to define custom secrets in your Kubernetes cluster. It supports automatic generation and rotation of secrets based on the specifications provided in the CustomSecret resource.
 
+## Demo
+
+You can watch a demo of the CustomSecret controller in action using Asciinema:
+
+[![asciicast](https://asciinema.org/a/706702.svg)](https://asciinema.org/a/706702?t=30)
+
+Or view the embedded player below:
+
+<script src="https://asciinema.org/a/706702.js" id="asciicast-706702" async="true"></script>
+
 ## Getting Started
 
 ### Prerequisites
@@ -171,16 +181,6 @@ helm upgrade customsecret ./dist/chart
 ```sh
 helm uninstall customsecret
 ```
-
-## Demo
-
-You can watch a demo of the CustomSecret controller in action using Asciinema:
-
-[![asciicast](https://asciinema.org/a/706702.svg)](https://asciinema.org/a/706702?t=30)
-
-Or view the embedded player below:
-
-<script src="https://asciinema.org/a/706702.js" id="asciicast-706702" async="true"></script>
 
 **NOTE:** Run `make help` for more information on all potential `make` targets
 
