@@ -164,19 +164,25 @@ kubectl apply -f config/samples/customsecret_v1alpha1_customsecret.yaml
 kubebuilder edit --plugins=helm/v1-alpha
 ```
 
-2. Deploy the Helm chart:
+2. Package the Helm chart:
 
 ```sh
-helm install customsecret ./dist/chart
+helm package ./dist/chart
 ```
 
-3. Upgrade the Helm chart:
+3. Deploy the Helm chart:
 
 ```sh
-helm upgrade customsecret ./dist/chart
+helm install customsecret ./customsecret-0.1.0.tgz
 ```
 
-4. Uninstall the Helm chart:
+4. Upgrade the Helm chart:
+
+```sh
+helm upgrade customsecret ./customsecret-0.1.0.tgz
+```
+
+5. Uninstall the Helm chart:
 
 ```sh
 helm uninstall customsecret
