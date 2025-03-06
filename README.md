@@ -1,8 +1,10 @@
 # customsecret
-// TODO(user): Add simple overview of use/purpose
+
+A Kubernetes controller for managing CustomSecret resources, which automatically generates and rotates secrets.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+The CustomSecret controller allows you to define custom secrets in your Kubernetes cluster. It supports automatic generation and rotation of secrets based on the specifications provided in the CustomSecret resource.
 
 ## Getting Started
 
@@ -45,7 +47,7 @@ You can apply the samples (examples) from the config/sample:
 kubectl apply -k config/samples/
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+>**NOTE**: Ensure that the samples have default values to test it out.
 
 ### To Uninstall
 **Delete the instances (CRs) from the cluster:**
@@ -66,52 +68,115 @@ make uninstall
 make undeploy
 ```
 
-## Project Distribution
+## Usage
 
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
+To create a CustomSecret resource, you can use the provided example YAML file.
 
 ```sh
-make build-installer IMG=<some-registry>/customsecret:tag
+kubectl apply -f config/samples/customsecret_v1alpha1_customsecret.yaml
 ```
 
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
+This will create a CustomSecret resource with the following specifications:
+- Type: `basic-auth`
+- Username: `admin`
+- Password length: `40` characters
+- Rotation period: `90` seconds
 
-2. Using the installer
+The controller will automatically generate a random password and create a Kubernetes Secret with the specified username and password. The password will be rotated according to the specified rotation period.
 
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
+### Example CustomSecret Resource
+
+```yaml
+apiVersion: api.example.com/v1alpha1
+kind: CustomSecret
+metadata:
+  name: customsecret-sample
+  namespace: default
+spec:
+  type: basic-auth
+  username: admin
+  passwordLen: 40
+  rotationPeriod: 86400 # 1 day in seconds
+```
+
+## Development
+
+### Prerequisites
+
+- go version v1.23.0+
+- docker version 17.03+.
+- kubectl version v1.11.3+.
+- Access to a Kubernetes v1.11.3+ cluster.
+
+### Running Locally
+
+1. Install the CRDs into the cluster:
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/customsecret/<tag or branch>/dist/install.yaml
+make install
 ```
 
-### By providing a Helm Chart
+2. Run the controller locally:
 
-1. Build the chart using the optional helm plugin
+```sh
+make run
+```
+
+### Building and Deploying
+
+1. Build and push your image to the location specified by `IMG`:
+
+```sh
+make docker-build docker-push IMG=<some-registry>/customsecret:tag
+```
+
+2. Deploy the controller to the cluster with the image specified by `IMG`:
+
+```sh
+make deploy IMG=<some-registry>/customsecret:tag
+```
+
+### Testing
+
+1. Create a CustomSecret resource:
+
+```sh
+kubectl apply -f config/samples/customsecret_v1alpha1_customsecret.yaml
+```
+
+2. Verify that the secret is created and rotated as expected.
+
+### Using Helm
+
+1. Build the Helm chart:
 
 ```sh
 kubebuilder edit --plugins=helm/v1-alpha
 ```
 
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
+2. Deploy the Helm chart:
 
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
+```sh
+helm install customsecret ./dist/chart
+```
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+3. Upgrade the Helm chart:
+
+```sh
+helm upgrade customsecret ./dist/chart
+```
+
+4. Uninstall the Helm chart:
+
+```sh
+helm uninstall customsecret
+```
+
+## Demo
+
+You can watch a demo of the CustomSecret controller in action using Asciinema:
+
+[![asciicast]<script src="https://asciinema.org/a/706702.js" id="asciicast-706702" async="true"></script>
 
 **NOTE:** Run `make help` for more information on all potential `make` targets
 
