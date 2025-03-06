@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -41,6 +42,7 @@ type CustomSecretReconciler struct {
 // +kubebuilder:rbac:groups=api.example.com,resources=customsecrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=api.example.com,resources=customsecrets/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=api.example.com,resources=customsecrets/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -91,7 +93,7 @@ func (r *CustomSecretReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				l.Info("CustomSecret status updated", "name", custom.Name)
 			} else {
 				secondsLeft := time.Duration(custom.Spec.RotationPeriod)*time.Second - time.Since(custom.Status.LastRotationTime.Time)
-				l.Info("Secret will be rotated after", "name", custom.Name, "secondsLeft", secondsLeft.Seconds())
+				l.Info(fmt.Sprintf("Secret will be rotated after: %f seconds", secondsLeft.Seconds()))
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			}
 		} else {
